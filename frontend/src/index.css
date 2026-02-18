@@ -1,0 +1,47 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  font-family: 'Outfit', sans-serif;
+}
+
+.font-mono {
+  font-family: 'Space Mono', monospace;
+}
+
+@layer base {
+  body {
+    @apply bg-cyber-dark text-slate-200 min-h-screen selection:bg-cyber-accent selection:text-white;
+  }
+}
+
+@layer components {
+  .cyber-card {
+    @apply bg-cyber-card border border-cyber-border rounded-xl backdrop-blur-md shadow-xl transition-all duration-300;
+  }
+  
+  .cyber-button-primary {
+    @apply px-4 py-2 bg-cyber-accent hover:bg-blue-600 text-white rounded-lg font-medium transition-all active:scale-95 disabled:opacity-50;
+  }
+  
+  .cyber-input {
+    @apply bg-cyber-dark border border-cyber-border rounded-lg px-4 py-2 focus:border-cyber-accent focus:outline-none transition-all;
+  }
+
+  /* Glassmorphism effect */
+  .glass {
+    @apply bg-white bg-opacity-[0.03] backdrop-blur-lg border border-white border-opacity-[0.05];
+  }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  @apply bg-cyber-dark;
+}
+::-webkit-scrollbar-thumb {
+  @apply bg-cyber-border rounded-full hover:bg-slate-700;
+}
