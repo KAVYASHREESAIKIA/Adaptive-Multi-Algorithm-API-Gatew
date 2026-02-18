@@ -1,107 +1,84 @@
+const { Op, fn, col } = require('sequelize');
 const rateLimiterFactory = require('../services/rateLimiterFactory');
 const behaviorService = require('../services/behaviorService');
 const circuitBreaker = require('../services/circuitBreaker');
 const { RequestLog, User } = require('../models');
-const { getRedis } = require('../config/redis');
 const logger = require('../utils/logger');
+
+// Consistency check
+if (!RequestLog || !User) {
+    logger.error('CRITICAL: Models (RequestLog/User) failed to load in adminController');
+}
 
 /**
  * POST /admin/algorithm
- * Change the active rate limiting algorithm at runtime
  */
 const changeAlgorithm = async (req, res) => {
     try {
         const { algorithm } = req.body;
-
-        if (!algorithm) {
-            return res.status(400).json({
-                error: 'Bad Request',
-                message: 'Algorithm name is required',
-            });
-        }
+        if (!algorithm) return res.status(400).json({ error: 'Algorithm required' });
 
         const available = rateLimiterFactory.getAvailableAlgorithms();
         if (!available.includes(algorithm)) {
-            return res.status(400).json({
-                error: 'Bad Request',
-                message: `Invalid algorithm: ${algorithm}. Valid options: ${available.join(', ')}`,
-            });
+            return res.status(400).json({ error: 'Invalid algorithm' });
         }
 
         await rateLimiterFactory.setActiveAlgorithm(algorithm);
-
-        return res.status(200).json({
-            message: 'Algorithm updated successfully',
-            activeAlgorithm: algorithm,
-            availableAlgorithms: available,
-        });
+        return res.status(200).json({ activeAlgorithm: algorithm });
     } catch (error) {
         logger.error('Change algorithm error:', error.message);
-        return res.status(500).json({
-            error: 'Internal Server Error',
-            message: 'Failed to change algorithm',
-        });
+        return res.status(500).json({ error: 'Failed to change algorithm' });
     }
 };
 
 /**
  * GET /admin/stats
- * Get system-wide statistics
  */
 const getStats = async (req, res) => {
     try {
         const activeAlgorithm = await rateLimiterFactory.getActiveAlgorithm();
-        const blockedUsers = await behaviorService.getBlockedUsers();
-        const suspiciousUsers = await behaviorService.getSuspiciousUsers();
+        const availableAlgorithms = rateLimiterFactory.getAvailableAlgorithms();
         const cbStatus = circuitBreaker.getStatus();
 
-        // Get total request count
-        const totalRequests = await RequestLog.count();
+        const [totalRequests, blockedRequests, blockedUsers, suspiciousUsers] = await Promise.all([
+            RequestLog.count(),
+            RequestLog.count({ where: { status: 429 } }),
+            behaviorService.getBlockedUsers(),
+            behaviorService.getSuspiciousUsers()
+        ]);
 
-        // Get recent request count (last hour)
         const oneHourAgo = new Date(Date.now() - 3600000);
         const recentRequests = await RequestLog.count({
-            where: {
-                created_at: {
-                    [require('sequelize').Op.gte]: oneHourAgo,
-                },
-            },
+            where: { createdAt: { [Op.gte]: oneHourAgo } }
         });
 
-        // Get blocked request count
-        const blockedRequests = await RequestLog.count({
-            where: { status: 429 },
-        });
-
-        // Get user count by role
         const userCounts = await User.findAll({
-            attributes: [
-                'role',
-                [require('sequelize').fn('COUNT', require('sequelize').col('id')), 'count'],
-            ],
+            attributes: ['role', [fn('COUNT', col('id')), 'count']],
             group: ['role'],
-            raw: true,
+            raw: true
         });
 
-        return res.status(200).json({
+        const statsData = {
             activeAlgorithm,
-            availableAlgorithms: rateLimiterFactory.getAvailableAlgorithms(),
+            availableAlgorithms,
             totalRequests,
             recentRequests,
             blockedRequests,
             blockedUsers: blockedUsers.length,
-            blockedUserIds: blockedUsers,
             suspiciousUsers: suspiciousUsers.length,
-            suspiciousUserDetails: suspiciousUsers,
             userCounts,
             circuitBreaker: cbStatus,
-            gatewayInstance: process.env.INSTANCE_ID || 'default',
-        });
+            gatewayInstance: process.env.INSTANCE_ID || 'default'
+        };
+
+        logger.debug(`Stats data: ${JSON.stringify(statsData)}`);
+        return res.status(200).json(statsData);
     } catch (error) {
-        logger.error('Get stats error:', error.message);
+        logger.error(`Get stats error: ${error.message}`);
+        if (error.stack) logger.debug(error.stack);
         return res.status(500).json({
-            error: 'Internal Server Error',
-            message: 'Failed to fetch stats',
+            error: 'Failed to fetch stats',
+            details: error.message
         });
     }
 };
@@ -216,7 +193,7 @@ const getLogs = async (req, res) => {
         const logs = await RequestLog.findAll({
             limit: parseInt(limit),
             offset: parseInt(offset),
-            order: [['created_at', 'DESC']],
+            order: [['createdAt', 'DESC']],
             include: [{
                 model: User,
                 attributes: ['email', 'role'],

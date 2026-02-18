@@ -22,6 +22,7 @@ const authenticate = async (req, res, next) => {
         // --- Step 1: Extract and verify JWT ---
         const authHeader = req.headers.authorization;
         if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            logger.warn('401: Missing or invalid Authorization header');
             return res.status(401).json({
                 error: 'Unauthorized',
                 message: 'Missing or invalid Authorization header. Expected: Bearer <token>',
@@ -34,6 +35,7 @@ const authenticate = async (req, res, next) => {
         try {
             decoded = jwt.verify(token, config.jwt.accessSecret);
         } catch (jwtError) {
+            logger.warn(`401: JWT Verification failed: ${jwtError.message}`);
             if (jwtError.name === 'TokenExpiredError') {
                 return res.status(401).json({
                     error: 'Unauthorized',
@@ -49,6 +51,7 @@ const authenticate = async (req, res, next) => {
         // --- Step 2: Verify API key ---
         const apiKey = req.headers['x-api-key'];
         if (!apiKey) {
+            logger.warn('401: Missing x-api-key header');
             return res.status(401).json({
                 error: 'Unauthorized',
                 message: 'Missing x-api-key header',
@@ -68,6 +71,7 @@ const authenticate = async (req, res, next) => {
         if (user.api_key !== apiKey) {
             // Record failed attempt
             await behaviorService.recordFailure(user.id);
+            logger.warn(`401: Invalid API key for user ${user.id}`);
             return res.status(401).json({
                 error: 'Unauthorized',
                 message: 'Invalid API key',
@@ -77,6 +81,7 @@ const authenticate = async (req, res, next) => {
         // --- Step 4: Check if user is blocked ---
         const isBlocked = await behaviorService.isBlocked(user.id);
         if (isBlocked) {
+            logger.warn(`403: Blocked user ${user.id} attempted access`);
             return res.status(403).json({
                 error: 'Forbidden',
                 message: 'Your account has been temporarily blocked due to suspicious activity',
