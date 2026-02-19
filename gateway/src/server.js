@@ -30,6 +30,19 @@ app.use(morgan('combined', {
 app.set('trust proxy', true);
 
 // ─────────────────────────────────────────
+// Welcome / Root Path
+// ─────────────────────────────────────────
+app.get('/', (req, res) => {
+    res.status(200).json({
+        message: 'Adaptive Multi-Algorithm API Gateway is running',
+        version: '1.0.0',
+        health: '/health',
+        documentation: 'https://github.com/KAVYASHREESAIKIA/Adaptive-Multi-Algorithm-API-Gatew',
+        dashboard: 'http://localhost:5173'
+    });
+});
+
+// ─────────────────────────────────────────
 // Health Check
 // ─────────────────────────────────────────
 app.get('/health', (req, res) => {
