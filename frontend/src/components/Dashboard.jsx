@@ -183,9 +183,9 @@ export default function Dashboard({ token, isAdmin, user }) {
                                 <div className="grid grid-cols-2 gap-3">
                                     <div className="p-3 bg-cyber-dark/40 rounded-lg border border-cyber-border">
                                         <p className="text-[9px] uppercase text-slate-500 font-bold mb-1">Status</p>
-                                        <p className="text-xs font-bold text-emerald-400 flex items-center gap-1">
+                                        <div className="text-xs font-bold text-emerald-400 flex items-center gap-1">
                                             <div className="w-1.5 h-1.5 rounded-full bg-emerald-400"></div> Active
-                                        </p>
+                                        </div>
                                     </div>
                                     <div className="p-3 bg-cyber-dark/40 rounded-lg border border-cyber-border">
                                         <p className="text-[9px] uppercase text-slate-500 font-bold mb-1">Tier</p>

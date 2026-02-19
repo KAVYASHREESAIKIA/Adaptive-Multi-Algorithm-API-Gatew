@@ -1,4 +1,5 @@
 const rateLimiterFactory = require('../services/rateLimiterFactory');
+const { RequestLog } = require('../models');
 const logger = require('../utils/logger');
 
 /**
@@ -13,6 +14,7 @@ const rateLimitMiddleware = async (req, res, next) => {
     try {
         const userId = req.user.id;
         const { effectiveLimit } = req.rateLimit;
+        const instanceId = process.env.INSTANCE_ID || 'default';
 
         // Admin bypass
         if (effectiveLimit === -1) {
@@ -38,6 +40,22 @@ const rateLimitMiddleware = async (req, res, next) => {
                 `🚫 Rate limit exceeded for user ${userId} (algorithm: ${activeAlgorithm}, limit: ${effectiveLimit})`
             );
 
+            // Log the blocked request to DB
+            try {
+                await RequestLog.create({
+                    user_id: userId,
+                    endpoint: req.originalUrl,
+                    method: req.method,
+                    status: 429,
+                    ip_address: req.ip,
+                    response_time_ms: 0,
+                    algorithm_used: activeAlgorithm,
+                    gateway_instance: instanceId,
+                });
+            } catch (logError) {
+                logger.error('Failed to log blocked request:', logError.message);
+            }
+
             return res.status(429).json({
                 error: 'Too Many Requests',
                 message: 'Rate limit exceeded. Try again later.',
@@ -46,7 +64,7 @@ const rateLimitMiddleware = async (req, res, next) => {
             });
         }
 
-        // Store algorithm info for logging
+        // Store algorithm info for logging in proxy controller
         req.algorithmUsed = activeAlgorithm;
 
         next();
