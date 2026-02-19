@@ -4,18 +4,20 @@ import {
     AreaChart, Area
 } from 'recharts';
 import {
-    Zap, Shield, AlertCircle, Activity,
+    Zap, Shield, AlertCircle, Activity, Lock,
     RefreshCw, Server, Info, LayoutGrid, Cpu, Settings, CheckCircle2, BarChart as BarChartIcon, ShieldAlert
 } from 'lucide-react';
 
 export default function Dashboard({ token, isAdmin, user }) {
     const [stats, setStats] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
     const [refreshInterval, setRefreshInterval] = useState(5000);
     const [switching, setSwitching] = useState(false);
 
     const fetchStats = async () => {
         try {
+            setError(null);
             const endpoint = isAdmin ? '/gateway-api/admin/stats' : '/gateway-api/me/rate-status';
             const response = await fetch(endpoint, {
                 headers: {
@@ -23,12 +25,24 @@ export default function Dashboard({ token, isAdmin, user }) {
                     'x-api-key': user.apiKey
                 }
             });
+
+            if (response.status === 401) {
+                // Token likely expired, force logout
+                localStorage.removeItem('agw_token');
+                localStorage.removeItem('agw_user');
+                window.location.reload();
+                return;
+            }
+
             const data = await response.json();
             if (response.ok) {
                 setStats(data);
+            } else {
+                setError(data.message || 'Failed to fetch telemetry data');
             }
         } catch (err) {
             console.error('Failed to fetch stats:', err);
+            setError('Could not connect to Gateway API. Ensure both instances are running.');
         } finally {
             setLoading(false);
         }
@@ -95,6 +109,16 @@ export default function Dashboard({ token, isAdmin, user }) {
                 </div>
             </div>
 
+            {error && (
+                <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-xl flex items-center gap-3 text-red-400">
+                    <AlertCircle size={20} />
+                    <div className="flex-1">
+                        <p className="text-sm font-bold">Authentication or Connection Error</p>
+                        <p className="text-xs opacity-70">{error}</p>
+                    </div>
+                </div>
+            )}
+
             {/* Primary Stats Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <StatCard
@@ -130,6 +154,48 @@ export default function Dashboard({ token, isAdmin, user }) {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Left Column: Algorithm Controls & Status */}
                 <div className="lg:col-span-1 space-y-6">
+                    {/* API Credentials Card (For Users) */}
+                    {!isAdmin && (
+                        <div className="cyber-card p-6 border-l-4 border-l-cyber-accent">
+                            <div className="flex items-center gap-2 mb-6">
+                                <Lock size={20} className="text-cyber-accent" />
+                                <h3 className="font-bold">API Access</h3>
+                            </div>
+                            <div className="space-y-4">
+                                <div className="space-y-1">
+                                    <label className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Your API Key</label>
+                                    <div className="flex gap-2">
+                                        <div className="flex-1 font-mono text-[11px] bg-cyber-dark/60 p-3 rounded-lg border border-cyber-border text-cyber-accent truncate">
+                                            {user.apiKey}
+                                        </div>
+                                        <button
+                                            onClick={() => {
+                                                navigator.clipboard.writeText(user.apiKey);
+                                                alert('API Key copied to clipboard!');
+                                            }}
+                                            className="p-3 bg-cyber-accent/10 hover:bg-cyber-accent/20 rounded-lg border border-cyber-accent/30 text-cyber-accent transition-all"
+                                            title="Copy Key"
+                                        >
+                                            <RefreshCw size={14} />
+                                        </button>
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div className="p-3 bg-cyber-dark/40 rounded-lg border border-cyber-border">
+                                        <p className="text-[9px] uppercase text-slate-500 font-bold mb-1">Status</p>
+                                        <p className="text-xs font-bold text-emerald-400 flex items-center gap-1">
+                                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-400"></div> Active
+                                        </p>
+                                    </div>
+                                    <div className="p-3 bg-cyber-dark/40 rounded-lg border border-cyber-border">
+                                        <p className="text-[9px] uppercase text-slate-500 font-bold mb-1">Tier</p>
+                                        <p className="text-xs font-bold text-white uppercase">{user.role}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     {isAdmin && (
                         <div className="cyber-card p-6 border-l-4 border-l-cyber-accent">
                             <div className="flex items-center gap-2 mb-6">
